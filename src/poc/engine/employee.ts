@@ -1,5 +1,3 @@
-import {accum, Accumulator, button, Button, clamp, Constant, knob, Knob, mul, TimedVal, add} from "./timed_val";
-import {Clock} from "./engine";
 import {Map} from "./util";
 
 export const CODE_SKILLS: string[] = [ "Code_TwoD" , "Code_ThreeD" , "Code_Algorithm" , "Code_Audio" , "Code_Networking" , "Code_System" , "Code_Web" ];
@@ -12,40 +10,31 @@ export const BASE_SKILLS: string[] = [...BASE_SPEC_SKILLS, LEAD_SKILL, MARKET_SK
 export const SKILLS: string[] = [...CODE_SKILLS, ...DESIGN_SKILLS, ...ART_SKILLS, ...BASE_SKILLS];
 
 export class Employee {
-    readonly learnRate: Knob;
-    public skills: Map<Employee.SkillValue>;
+    private static TICKS_PER_TRAIN = 60;
+
+    public skills: Map<number> = {};
+    public skillsBeingTrained: Set<string> =  new Set([]);
+
+    public learnRate: number = 0.001;
+    private lastTrainTick: number;
 
     constructor(readonly createTime: number) {
-        this.learnRate = knob(0);
+        this.lastTrainTick = createTime;
         for (let skill in SKILLS) {
-            this.skills[skill] = new Employee.SkillValue(this);
+            this.skills[skill] = 0;
         }
     }
 
-}
+    public tick(time: number) {
+        this.maybeTrain(time);
+    }
 
-export namespace Employee {
-    export class SkillValue {
-        private _value: TimedVal;
-        private _trainingBtn: Button;
-        private _xp: Accumulator;
-        private _base: Constant;
-
-        constructor(private employee: Employee) {
-            this._xp = accum(0, employee.createTime, 0.001, 0);
-            this._trainingBtn = button();
-            this._value = clamp(add(this._base, mul(mul(this._trainingBtn, employee.learnRate), this._xp)), 0, 100);
+    private maybeTrain(time: number) {
+        if (time - this.lastTrainTick > Employee.TICKS_PER_TRAIN) {
+            for (let skill in this.skillsBeingTrained) {
+                this.skills[skill] += this.learnRate;
+            }
+            this.lastTrainTick = time;
         }
-
-        public get val(): number {
-            return this._value.valueAt(Clock.now());
-        }
-
-        public get trainingBtn(): Button {
-            return this._trainingBtn;
-        }
-        public get xp(): Accumulator {
-            return this._xp;
-        }
-    };
+    }
 }

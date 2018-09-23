@@ -3,15 +3,13 @@ import * as Umbra from "../fwk/umbra/main";
 import * as Yendor from "../fwk/yendor/main";
 import * as Gui from "../fwk/gui/main";
 import {
-    PocScreen
-} from "./poc-screen";
-import {
     MENU_BACKGROUND,
     MENU_BACKGROUND_ACTIVE,
     MENU_FOREGROUND,
     MENU_FOREGROUND_ACTIVE,
     MENU_FOREGROUND_DISABLED, TITLE_FOREGROUND
 } from "../generogue/base";
+import {TickableStressTest} from "./tickable-stress-test";
 
 const WIDTH: number = 80;
 const HEIGHT: number = 50;
@@ -24,7 +22,7 @@ class MainScene extends Umbra.Scene {
     private mustClearConsole: boolean = false;
 
     public onInit() {
-        this.screens.push(this.addChild(new PocScreen()));
+        this.screens.push(this.addChild(new TickableStressTest()));
         this.screens[0].show();
     }
 

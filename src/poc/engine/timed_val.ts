@@ -194,13 +194,13 @@ export class DependentAccumulator extends AbstractCachedVal implements Tickable 
     }
 
     public changeVelocity(velocity: TimedVal, time: number) {
-        this.velVal = velocity;
         this.cache(time); // force a recache if needed.
+        this.velVal = velocity;
     }
 
     public changeAcceleration(acceleration: TimedVal, time: number) {
-        this.acceleration = acceleration;
         this.cache(time); // force a recache if needed.
+        this.acceleration = acceleration;
     }
 
     protected recomputeCachedVal(time: number): number {
@@ -208,8 +208,9 @@ export class DependentAccumulator extends AbstractCachedVal implements Tickable 
         let dT = (time - this.lastCalcAt);
         let dV = (this.velVal.valueAt(time) - this.velocityAtLastCalc);
 
+        this.velocity += dV;
         this.value += this.velocity*dT + 0.5*this.acceleration.valueAt(time)*dT*dT;
-        this.velocity += this.acceleration.valueAt(time)*dT + dV;
+        this.velocity += this.acceleration.valueAt(time)*dT;
 
         this.velocityAtLastCalc = velNow;
         return this.value;

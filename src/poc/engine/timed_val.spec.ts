@@ -286,4 +286,17 @@ describe('DependentAccumulator', () => {
         Clock.tick();
         expect(acc.valueAt(Clock.now())).toEqual(7.5);
     });
+    it('should update on tick when downstream values are updated', () => {
+        let k: Knob = knob(1),
+            acc: DependentAccumulator  = daccum(0, Clock.now(), k, ZERO);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(2);
+        k.setVal(-1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1);
+    })
 });

@@ -286,7 +286,7 @@ describe('DependentAccumulator', () => {
         Clock.tick();
         expect(acc.valueAt(Clock.now())).toEqual(7.5);
     });
-    it('should update on tick when downstream values are updated', () => {
+    it('should update on tick when downstream velocity is updated', () => {
         let k: Knob = knob(1),
             acc: DependentAccumulator  = daccum(0, Clock.now(), k, ZERO);
 
@@ -298,5 +298,25 @@ describe('DependentAccumulator', () => {
         k.setVal(-1);
         Clock.tick();
         expect(acc.valueAt(Clock.now())).toEqual(1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        k.setVal(2);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(2);
+    });
+    it('should update on tick when downstream acceleration is updated', () => {
+        let k: Knob = knob(1),
+            acc: DependentAccumulator  = daccum(0, Clock.now(), ZERO, k);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0.5);
+        k.setVal(-1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0.5);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(-1);
     })
 });

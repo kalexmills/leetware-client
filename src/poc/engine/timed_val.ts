@@ -172,9 +172,9 @@ export class Accumulator extends AbstractCachedVal {
 }
 
 /**
- * DependentAccumulator is an accumulator whose acceleration and velocities are TimedValues. A DependentAccumulator
- * must recompute itself on each tick so that it can stay informed of changes on downstream TimedVals which may change
- * arbitrarily.
+ * DependentAccumulator is a variant Accumulator whose acceleration and velocities are TimedValues. A
+ * DependentAccumulator must recompute itself on each tick so that it can stay informed of changes on downstream
+ * TimedVals which may change arbitrarily.
  *
  * The DependentAccumulator accumulates velocity separately from the velVal TimedVal. It interprets these changes in
  * velVal as instantaneous impulses that occur on the tick.

@@ -1,4 +1,33 @@
 /**
+ * Contains the following heirarchy. Instances with a (*) are not concrete.
+ *   - TimedVal           *
+ *   |- Button
+ *   |- Constant
+ *   |- Knob
+ *   |- AbstractCachedVal *
+ *   | |- Accumulator
+ *   | |- CachedVal
+ *   |- DependentVal      *
+ *   | |- Adder
+ *   | |- Averager
+ *   | |- Multiplier
+ *   |- Filter            *
+ *   | |- Clamper
+ *   | |- Sigmoider
+ *   |- ZipCombiner
+ *   | |- DotProduct
+ *   | |- WeightedAverage *
+ *
+ * At the bottom of the file the following functions and constants can be found
+ *
+ * functions:
+ *   accum, add, avg, button, clamp, dot, knob, mul, num, sigmoid, wghtdAvg
+ *
+ * constants:
+ *   HALF, ONE, ZERO
+ */
+
+/**
  * TimedVal is a value whose value changes over time.
  */
 export interface TimedVal {
@@ -12,37 +41,18 @@ export interface TimedVal {
 }
 
 /**
- * CachedVal wraps a TimedVal and implements simple caching on top of it to guarantee the wrapped value is only computed
- * once in any tick.
+ * Button is a TimedVal whose value can be toggled or set by external events. It has value zero if off and one if on.
  */
-abstract class AbstractCachedVal implements TimedVal {
-    private lastVal: number;
-    protected lastCalcAt: number;
-
-    constructor(createTime: number) {
-        this.lastCalcAt = createTime;
+export class Button implements TimedVal {
+    private isOn: boolean;
+    public constructor(isOn: boolean) {
+        this.isOn = isOn;
     }
 
-    public valueAt(time: number): number {
-        if (this.lastVal === undefined || this.lastCalcAt != time) {
-            this.lastVal = this.recomputeCachedVal(time);
-            this.lastCalcAt = time;
-        }
-        return this.lastVal;
-    }
+    public valueAt(_ignore: number): number { return this.isOn ? 1 : 0; }
 
-    protected abstract recomputeCachedVal(time: number): number;
-}
-
-export class CachedVal extends AbstractCachedVal {
-
-    constructor(createTime: number, private wrapped: TimedVal) {
-        super(createTime);
-    }
-
-    protected recomputeCachedVal(time: number): number {
-        return this.wrapped.valueAt(time);
-    }
+    public toggle(): void { this.isOn = !this.isOn; }
+    public set(isOn: boolean): void { this.isOn = isOn;}
 }
 
 /**
@@ -78,16 +88,163 @@ export class Knob implements TimedVal {
     }
 }
 
-export class Button implements TimedVal {
-    private isOn: boolean;
-    public constructor(isOn: boolean) {
-        this.isOn = isOn;
+/**
+ * AbstractCachedVal implements simple caching to guarantee the wrapped value is only computed once in any tick. It
+ * provides a recomputeCachedVal method for implementers to perform their computation.
+ */
+abstract class AbstractCachedVal implements TimedVal {
+    private lastVal: number;
+    protected lastCalcAt: number;
+
+    constructor(createTime: number) {
+        this.lastCalcAt = createTime;
     }
 
-    public valueAt(_ignore: number): number { return this.isOn ? 1 : 0; }
+    public valueAt(time: number): number {
+        if (this.lastVal === undefined || this.lastCalcAt != time) {
+            this.lastVal = this.recomputeCachedVal(time);
+            this.lastCalcAt = time;
+        }
+        return this.lastVal;
+    }
 
-    public toggle(): void { this.isOn = !this.isOn; }
-    public set(isOn: boolean): void { this.isOn = isOn ? 1 : 0;}
+    protected abstract recomputeCachedVal(time: number): number;
+}
+
+/**
+ * CachedVal wraps a TimedVal and provides caching to guarantee the wrapped value is computed only once in any tick.
+ */
+export class CachedVal extends AbstractCachedVal {
+
+    constructor(createTime: number, private wrapped: TimedVal) {
+        super(createTime);
+    }
+
+    protected recomputeCachedVal(time: number): number {
+        return this.wrapped.valueAt(time);
+    }
+}
+
+/**
+ * Accumulator is a TimedVal which takes a velocity as input. It accumulates value into an internal store, which is
+ * increased or decreased during each tick at a rate equal to the accumulator's velocity.
+ *
+ * This class also includes an optional acceleration parameter. If not given, it is assumed to be zero. Changes in
+ * velocity and acceleration are explicit events.
+ */
+export class Accumulator extends AbstractCachedVal {
+    public constructor(private value: number, time: number, private velocity: number, private acceleration: number = 0) {
+        super(time);
+    }
+
+    public changeVelocity(velocity: number, time: number) {
+        this.recomputeCachedVal(time);
+        this.velocity = velocity;
+    }
+
+    public changeAcceleration(acceleration: number, time: number) {
+        this.recomputeCachedVal(time);
+        this.acceleration = acceleration;
+    }
+
+    protected recomputeCachedVal(time: number): number {
+        let dT = (time - this.lastCalcAt);
+        this.value += this.velocity*dT + 0.5*this.acceleration*dT*dT;
+        this.velocity += this.acceleration*dT;
+        return this.value;
+    }
+}
+
+/**
+ * DependentVal depends on one or more source values.
+ */
+abstract class DependentVal implements TimedVal {
+
+    private sources: TimedVal[];
+
+    constructor(... sources: TimedVal[]) {
+        this.sources = sources;
+    }
+
+    public valueAt(time: number): number {
+        return this.computeVal(...this.sources.map((s) => s.valueAt(time)));
+    }
+
+    protected abstract computeVal(...inputs: number[]): number;
+}
+
+/**
+ * Averager is a Combiner which averages its inputs together.
+ */
+export class Averager extends DependentVal {
+    computeVal(...values: number[]): number {
+        return values.reduce((prev, curr) => prev + curr, 0) / values.length;
+    }
+}
+
+/**
+ * Adder is a Combiner which sums its inputs together and returns the result.
+ */
+export class Adder extends DependentVal {
+    computeVal(...values: number[]): number {
+        return values.reduce((prev, curr) => prev + curr, 0);
+    }
+}
+
+/**
+ * Multiplier is a Combiner which multiplies its inputs together. It is most appropriate for inputs between
+ * zero and one.
+ */
+export class Multiplier extends DependentVal {
+    computeVal(...values: number[]): number {
+        return values.reduce((prev, curr) => prev * curr, 1);
+    }
+}
+
+/**
+ * Filter is a DependentVal with a single input which filters its input in some way.
+ */
+export abstract class Filter extends DependentVal {
+
+    public constructor(input: TimedVal) {
+        super(input);
+    }
+
+    protected computeVal(...sources: number[]): number {
+        // N.b. despite this method's variadic signature, we are guaranteed to only be called with one source value.
+        return this.filter(sources[0]);
+    }
+
+    protected abstract filter(source: number): number;
+}
+
+/**
+ * Clamper is a filter which clamps its input to the closed interval between [min, max].
+ */
+export class Clamper extends Filter {
+    public constructor(input: TimedVal, private min: number, private max:number) {
+        super(input);
+    }
+
+    protected filter(value: number): number {
+        return (value < this.min) ? this.min : (value > this.max) ? this.max : value;
+    }
+
+    public setMax(val: number) { this.max = val; }
+    public setMin(val: number) { this.min = val; }
+}
+
+/**
+ * Sigmoider is a filter which applies a shifted and scaled sigmoid function to its input.
+ */
+export class Sigmoider extends Filter {
+    public constructor(input: TimedVal, private shift: number = 0 , private scale: number = 1) {
+        super(input);
+    }
+
+    protected filter(value: number): number {
+        return this.scale*(1 / (1 + Math.exp(value + this.shift)));
+    }
 }
 
 /**
@@ -143,162 +300,40 @@ export class WeightedAverage extends ZipCombiner {
     }
 }
 
-/**
- * DependentVal depends on one or more source values.
- */
-abstract class DependentVal implements TimedVal {
-
-    private sources: TimedVal[];
-
-    constructor(... sources: TimedVal[]) {
-        this.sources = sources;
-    }
-
-    public valueAt(time: number): number {
-        return this.computeVal(...this.sources.map((s) => s.valueAt(time)));
-    }
-
-    protected abstract computeVal(...inputs: number[]): number;
-
-}
-
-/**
- * Averager is a Combiner which averages its inputs together.
- */
-export class Averager extends DependentVal {
-    computeVal(...values: number[]): number {
-        return values.reduce((prev, curr) => prev + curr, 0) / values.length;
-    }
-}
-
-/**
- * Summer is a Combiner which sums its inputs together and returns the result.
- */
-export class Summer extends DependentVal {
-    computeVal(...values: number[]): number {
-        return values.reduce((prev, curr) => prev + curr, 0);
-    }
-}
-
-/**
- * Multiplier is a Combiner which multiplies its inputs together. It is most appropriate for inputs between
- * zero and one.
- */
-export class Multiplier extends DependentVal {
-    computeVal(...values: number[]): number {
-        return values.reduce((prev, curr) => prev * curr, 1);
-    }
-}
-
-/**
- * Filter is a DependentVal with a single input which filters its input in some way.
- */
-export abstract class Filter extends DependentVal {
-
-    public constructor(input: TimedVal) {
-        super(input);
-    }
-
-    protected computeVal(...sources: number[]): number {
-        // N.b. despite this method's variadic signature, we are guaranteed to only be called with one source value.
-        return this.filter(sources[0]);
-    }
-
-    protected abstract filter(source: number): number;
-}
-
-/**
- * Clamper is a filter which clamps its input to the closed interval between [min, max].
- */
-export class Clamper extends Filter {
-    public constructor(input: TimedVal, private min: number, private max:number) {
-        super(input);
-    }
-
-    protected filter(value: number): number {
-        return (value < this.min) ? this.min : (value > this.max) ? this.max : value;
-    }
-
-    public setMax(val: number) { this.max = val; }
-    public setMin(val: number) { this.min = val; }
-}
-
-/**
- * Sigmoid is a filter which applies a shifted and scaled sigmoid function to its input.
- */
-export class Sigmoid extends Filter {
-    public constructor(input: TimedVal, private shift: number = 0 , private scale: number = 1) {
-        super(input);
-    }
-
-    protected filter(value: number): number {
-        return this.scale*(1 / (1 + Math.exp(value + this.shift)));
-    }
-}
-
-/**
- * Accumulator is a TimedVal which takes a velocity as input. It accumulates value into an internal store, which is
- * increased or decreased during each tick at a rate equal to the accumulator's velocity.
- *
- * This class also includes an optional acceleration parameter. If not given, it is assumed to be zero. Changes in
- * velocity and acceleration are explicit events.
- */
-export class Accumulator extends AbstractCachedVal {
-    public constructor(private value: number, time: number, private velocity: number, private acceleration: number = 0) {
-        super(time);
-    }
-
-    public changeVelocity(velocity: number, time: number) {
-        this.recomputeCachedVal(time);
-        this.velocity = velocity;
-    }
-    public changeAcceleration(acceleration: number, time: number) {
-        this.recomputeCachedVal(time);
-        this.acceleration = acceleration;
-    }
-
-    protected recomputeCachedVal(time: number): number {
-        let dT = (time - this.lastCalcAt);
-        this.value += this.velocity*dT + 0.5*this.acceleration*dT*dT; // TODO: check math
-        this.velocity += this.acceleration*dT;
-        return this.value;
-    }
-}
-
 // Convenience methods to avoid a shit-ton of 'new' statements. This should be considered the "public API"
-export function add(...vals: TimedVal[]): Summer {
-    return new Summer(...vals);
+export function accum(val: number, time: number, vel: number, accel: number = 0): Accumulator {
+    return new Accumulator(val, time, vel, accel);
 }
-export function mul(...vals: TimedVal[]): Multiplier {
-    return new Multiplier(...vals);
+export function add(...vals: TimedVal[]): Adder {
+    return new Adder(...vals);
 }
 export function avg(...vals: TimedVal[]): Averager {
     return new Averager(...vals);
 }
-export function dot(a: TimedVal[], b: TimedVal[]): DotProduct {
-    return new DotProduct(a, b);
-}
-export function weightedAvg(a: TimedVal[], b: TimedVal[]): WeightedAverage {
-    return new WeightedAverage(a, b);
+export function button(isOn: boolean = false): Button {
+    return new Button(isOn);
 }
 export function clamp(val: TimedVal, min: number, max: number): Clamper {
     return new Clamper(val, min, max);
 }
-export function sigmoid(val: TimedVal, shift: number = 0, scale: number = 1): Sigmoid {
-    return new Sigmoid(val, shift, scale);
-}
-export function accum(val: number, time: number, vel: number, accel: number = 0): Accumulator {
-    return new Accumulator(val, time, vel, accel);
+export function dot(a: TimedVal[], b: TimedVal[]): DotProduct {
+    return new DotProduct(a, b);
 }
 export function knob(val: number = 0): Knob {
     return new Knob(val);
 }
-export function button(isOn: boolean = false): Button {
-    return new Button(isOn);
+export function mul(...vals: TimedVal[]): Multiplier {
+    return new Multiplier(...vals);
 }
 export function num(val: number): Constant {
     return new Constant(val);
 }
-export const ZERO: TimedVal = new Constant(0);
-export const ONE: TimedVal = new Constant(1);
+export function sigmoid(val: TimedVal, shift: number = 0, scale: number = 1): Sigmoider {
+    return new Sigmoider(val, shift, scale);
+}
+export function wghtdAvg(a: TimedVal[], b: TimedVal[]): WeightedAverage {
+    return new WeightedAverage(a, b);
+}
 export const HALF: TimedVal = new Constant(0.5);
+export const ONE: TimedVal = new Constant(1);
+export const ZERO: TimedVal = new Constant(0);

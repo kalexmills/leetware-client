@@ -9,10 +9,10 @@ import {
     mul,
     Multiplier,
     num,
-    Summer,
+    Adder,
     TimedVal,
     WeightedAverage,
-    weightedAvg
+    wghtdAvg
 } from './timed_val';
 
 describe('Constant', () => {
@@ -153,10 +153,10 @@ describe('Multiplier', () => {
    });
 });
 
-describe('Summer', () => {
+describe('Adder', () => {
     it('should add its inputs', () => {
         let a: Knob = knob(5),
-            s: Summer = add(num(3), num(4), a);
+            s: Adder = add(num(3), num(4), a);
 
         expect(s.valueAt(0)).toEqual(3+4+5);
         expect(s.valueAt(1)).toEqual(3+4+5);
@@ -168,7 +168,7 @@ describe('Summer', () => {
     it('should update its value when its child values are updated over time', () => {
         let a: Accumulator = accum(0, 0, 1, 0),
             b: Accumulator = accum(0, 0, 2, 0),
-            s: Summer = add(a,b);
+            s: Adder = add(a,b);
 
         expect(s.valueAt(0)).toEqual(0+0);
         expect(s.valueAt(1)).toEqual(1+2);
@@ -179,7 +179,7 @@ describe('Summer', () => {
 
 describe('WeightedAverage', () => {
     it('should compute a weighted average', () => {
-        let w: WeightedAverage = weightedAvg([num(1), num(5), num(9)], [num(10), num(10), num(10)]);
+        let w: WeightedAverage = wghtdAvg([num(1), num(5), num(9)], [num(10), num(10), num(10)]);
 
         expect(w.valueAt(0)).toBeCloseTo(10/15 + 50/15 + 90/15, 10);
     });

@@ -11,9 +11,9 @@
  *   | |- Adder
  *   | |- Averager
  *   | |- Multiplier
- *   |- Filter            *
- *   | |- Clamper
- *   | |- Sigmoider
+ *   | |- Filter          *
+ *   | | |- Clamper
+ *   | | |- Sigmoider
  *   |- ZipCombiner
  *   | |- DotProduct
  *   | |- WeightedAverage *
@@ -25,27 +25,32 @@
  *
  * constants:
  *   HALF, ONE, ZERO
+ *
+ * N.b. the order of this notice matches the order of appearance of classes in the file and moreover the names of
+ *      instances are "as alphabetized as possible". Keep it that way (please).
  */
 
 /**
  * TimedVal is a value whose value changes over time.
  */
-export interface TimedVal {
+export abstract class TimedVal {
+    
     /**
      * Returns the value of TimedVal at some time in the future. Callers are expected to ensure
      * that subsequent calls to valueAt() pass non-decreasing values of time.
      *
      * @param time
      */
-    valueAt(time: number): number;
+    abstract valueAt(time: number): number;
 }
 
 /**
  * Button is a TimedVal whose value can be toggled or set by external events. It has value zero if off and one if on.
  */
-export class Button implements TimedVal {
+export class Button extends TimedVal {
     private isOn: boolean;
     public constructor(isOn: boolean) {
+        super();
         this.isOn = isOn;
     }
 
@@ -58,10 +63,11 @@ export class Button implements TimedVal {
 /**
  * Constant is a TimedVal whose value does not change over time.
  */
-export class Constant implements TimedVal {
+export class Constant extends TimedVal {
     private value: number;
 
     public constructor(value: number) {
+        super();
         this.value = value;
     }
 
@@ -73,11 +79,12 @@ export class Constant implements TimedVal {
 /**
  * Knob is a TimedVal whose value does not change over time, but is set by external events.
  */
-export class Knob implements TimedVal {
+export class Knob extends TimedVal {
     // N.b. this class doesn't extend DependentVal because its implementation of valueAt is significantly simpler.
     private value: number;
 
     public constructor(initialValue: number) {
+        super();
         this.value = initialValue;
     }
 
@@ -92,11 +99,12 @@ export class Knob implements TimedVal {
  * AbstractCachedVal implements simple caching to guarantee the wrapped value is only computed once in any tick. It
  * provides a recomputeCachedVal method for implementers to perform their computation.
  */
-abstract class AbstractCachedVal implements TimedVal {
+abstract class AbstractCachedVal extends TimedVal {
     private lastVal: number;
     protected lastCalcAt: number;
 
     constructor(createTime: number) {
+        super();
         this.lastCalcAt = createTime;
     }
 
@@ -158,11 +166,12 @@ export class Accumulator extends AbstractCachedVal {
 /**
  * DependentVal depends on one or more source values.
  */
-abstract class DependentVal implements TimedVal {
+abstract class DependentVal extends TimedVal {
 
     private sources: TimedVal[];
 
     constructor(... sources: TimedVal[]) {
+        super();
         this.sources = sources;
     }
 
@@ -250,12 +259,13 @@ export class Sigmoider extends Filter {
 /**
  * ZipCombiner is an abstract TimedVal which combines a pair of array of inputs in dot-product-like way.
  */
-export abstract class ZipCombiner implements TimedVal {
+export abstract class ZipCombiner extends TimedVal {
     private a: TimedVal[];
     private b: TimedVal[];
     private lastVal: number;
 
     public constructor(a: TimedVal[], b: TimedVal[]) {
+        super();
         this.a = a;
         this.b = b;
     }

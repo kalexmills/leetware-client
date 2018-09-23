@@ -1,18 +1,24 @@
 {
   "compilerOptions": {
-    "module": "amd",
+    "module": "commonjs",
     "target": "ES6",
+    "removeComments": true,
     "sourceMap": true,
+    "allowJs": true,
     "outDir": "build",
     "noImplicitAny": true,
     "moduleResolution": "node",
     "strictNullChecks": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "typeRoots": [
+      "../node_modules/@types"
+    ]
   },
   "files": [
     "src/generogue/main.ts",
     "src/tests/main.ts",
-    "src/tests/bench.ts"
+    "src/tests/bench.ts",
+    "src/poc/main.ts"
   ]
 }

@@ -30,44 +30,47 @@
  *      instances are "as alphabetized as possible". Keep it that way (please).
  */
 
+import {Clock, Tickable} from "./engine";
+
 /**
- * TimedVal is a value whose value changes over time.
+ * TimedVal is a value which changes over time.
  */
-export abstract class TimedVal {
-    
+export interface TimedVal {
     /**
      * Returns the value of TimedVal at some time in the future. Callers are expected to ensure
      * that subsequent calls to valueAt() pass non-decreasing values of time.
      *
      * @param time
      */
-    abstract valueAt(time: number): number;
+    valueAt(time: number): number;
 }
 
 /**
  * Button is a TimedVal whose value can be toggled or set by external events. It has value zero if off and one if on.
  */
-export class Button extends TimedVal {
+export class Button implements TimedVal {
     private isOn: boolean;
     public constructor(isOn: boolean) {
-        super();
         this.isOn = isOn;
     }
 
     public valueAt(_ignore: number): number { return this.isOn ? 1 : 0; }
 
-    public toggle(): void { this.isOn = !this.isOn; }
-    public set(isOn: boolean): void { this.isOn = isOn;}
+    public toggle(): void {
+        this.isOn = !this.isOn;
+    }
+    public set(isOn: boolean): void {
+        this.isOn = isOn;
+    }
 }
 
 /**
  * Constant is a TimedVal whose value does not change over time.
  */
-export class Constant extends TimedVal {
+export class Constant implements TimedVal {
     private value: number;
 
     public constructor(value: number) {
-        super();
         this.value = value;
     }
 
@@ -79,12 +82,11 @@ export class Constant extends TimedVal {
 /**
  * Knob is a TimedVal whose value does not change over time, but is set by external events.
  */
-export class Knob extends TimedVal {
+export class Knob implements TimedVal {
     // N.b. this class doesn't extend DependentVal because its implementation of valueAt is significantly simpler.
     private value: number;
 
     public constructor(initialValue: number) {
-        super();
         this.value = initialValue;
     }
 
@@ -99,12 +101,11 @@ export class Knob extends TimedVal {
  * AbstractCachedVal implements simple caching to guarantee the wrapped value is only computed once in any tick. It
  * provides a recomputeCachedVal method for implementers to perform their computation.
  */
-abstract class AbstractCachedVal extends TimedVal {
+abstract class AbstractCachedVal implements TimedVal {
     private lastVal: number;
     protected lastCalcAt: number;
 
-    constructor(createTime: number) {
-        super();
+    protected constructor(createTime: number) {
         this.lastCalcAt = createTime;
     }
 
@@ -139,9 +140,11 @@ export class CachedVal extends AbstractCachedVal {
  *
  * This class also includes an optional acceleration parameter. If not given, it is assumed to be zero. Changes in
  * velocity and acceleration are explicit events.
+ *
+ * Velocity and acceleration of this Accumulator are changed only via external events.
  */
 export class Accumulator extends AbstractCachedVal {
-    public constructor(private value: number, time: number, private velocity: number, private acceleration: number = 0) {
+    constructor(private value: number, time: number, private velocity: number, private acceleration: number = 0) {
         super(time);
     }
 
@@ -164,14 +167,40 @@ export class Accumulator extends AbstractCachedVal {
 }
 
 /**
+ * DepdendentAccumulator is an accumulator whose acceleration and velocities are TimedValues.
+ */
+export class DepdendentAccumulator extends AbstractCachedVal implements Tickable {
+    private velocity: number;
+    private velocityAtLastCalc: number;
+    constructor(private value: number, time: number, private velVal: TimedVal, private acceleration: TimedVal) {
+        super(time);
+        Clock.registerTickable(this);
+    }
+
+    public tick(time: number): void {
+        this.valueAt(time); // make the call to the superclass to ensure caching occurs.
+    }
+
+    protected recomputeCachedVal(time: number): number {
+        let velNow = this.velVal.valueAt(time);
+        let dT = (time - this.lastCalcAt);
+        let dV = (this.velVal.valueAt(time) - this.velocityAtLastCalc);
+
+        this.value += this.velocity*dT + 0.5*this.acceleration.valueAt(time)*dT*dT;
+        this.velocity += this.acceleration.valueAt(time)*dT + dV;
+
+        this.velocityAtLastCalc = velNow;
+        return this.value;
+    }
+}
+
+/**
  * DependentVal depends on one or more source values.
  */
-abstract class DependentVal extends TimedVal {
-
+abstract class DependentVal implements TimedVal {
     private sources: TimedVal[];
 
     constructor(... sources: TimedVal[]) {
-        super();
         this.sources = sources;
     }
 
@@ -215,7 +244,7 @@ export class Multiplier extends DependentVal {
  */
 export abstract class Filter extends DependentVal {
 
-    public constructor(input: TimedVal) {
+    constructor(input: TimedVal) {
         super(input);
     }
 
@@ -259,13 +288,12 @@ export class Sigmoider extends Filter {
 /**
  * ZipCombiner is an abstract TimedVal which combines a pair of array of inputs in dot-product-like way.
  */
-export abstract class ZipCombiner extends TimedVal {
+export abstract class ZipCombiner implements TimedVal {
     private a: TimedVal[];
     private b: TimedVal[];
     private lastVal: number;
 
     public constructor(a: TimedVal[], b: TimedVal[]) {
-        super();
         this.a = a;
         this.b = b;
     }

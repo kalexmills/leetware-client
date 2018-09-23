@@ -4,6 +4,7 @@ import {
     add,
     avg,
     clamp,
+    daccum,
     knob,
     mul,
     num,
@@ -13,11 +14,20 @@ import {
     Averager,
     Clamper,
     Constant,
+    DependentAccumulator,
     DotProduct,
     Knob,
     Multiplier,
     WeightedAverage,
+    ONE,
+    ZERO,
 } from './timed_val';
+import {Clock} from "./engine";
+
+beforeEach(() => {
+    Clock.jettisonSubscribers();
+    Clock.reset();
+});
 
 describe('Constant', () => {
     it('should not change its value over time', () => {
@@ -208,4 +218,72 @@ describe('Averager', () => {
 
         expect(a.valueAt(0)).toBeCloseTo((6+10+12)/3, 10);
     })
+});
+
+describe('DependentAccumulator', () => {
+    it('should correctly compute a value that updates according to velocity', () => {
+        let acc: DependentAccumulator = daccum(0, Clock.now(), ONE, ZERO);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1);
+        Clock.tick();
+        Clock.tick();
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(4);
+
+    });
+    it('should correctly accumulate value when velocity is changed', () => {
+        let acc: DependentAccumulator = daccum(0, Clock.now(), ONE, ZERO);
+
+        Clock.tick();
+        Clock.tick();
+        Clock.tick();
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(4);
+        acc.changeVelocity(num(-1), Clock.now());
+        Clock.tick();
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(2);
+        acc.changeVelocity(num(2), Clock.now());
+        Clock.tick();
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(6);
+    });
+    it('should correctly compute a value that updates according to acceleration', () => {
+        let acc: DependentAccumulator = daccum(0, 0, ZERO, ONE);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0.5);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(2);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(4.5);
+    });
+    it('should correctly compute a value when acceleration is changed', () => {
+        let acc: DependentAccumulator = daccum(0, 0, ZERO, ONE);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0.5);
+        acc.changeAcceleration(num(-1), Clock.now());
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(0.5);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(-1);
+    });
+    it('should correctly compute a value that updates according to acceleration and velocity', () => {
+        let acc: DependentAccumulator = daccum(0, 0, ONE, ONE);
+
+        expect(acc.valueAt(Clock.now())).toEqual(0);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(1.5);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(4);
+        Clock.tick();
+        expect(acc.valueAt(Clock.now())).toEqual(7.5);
+    });
 });

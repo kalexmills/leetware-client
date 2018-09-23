@@ -29,4 +29,18 @@ export abstract class Clock {
     public static unregisterTickable(t: Tickable) {
         this.subscribers.delete(t);
     }
+
+    /**
+     * Removes all subscribers of this Clock.
+     */
+    public static jettisonSubscribers() {
+        Clock.subscribers.clear();
+    }
+
+    /**
+     * Resets this clock back to zero.
+     */
+    public static reset() {
+        Clock.NOW = 0;
+    }
 };

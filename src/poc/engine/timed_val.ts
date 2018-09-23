@@ -6,6 +6,7 @@
  *   |- Knob
  *   |- AbstractCachedVal *
  *   | |- Accumulator
+ *   | |- DependentAccumulator
  *   | |- CachedVal
  *   |- DependentVal      *
  *   | |- Adder
@@ -111,10 +112,14 @@ abstract class AbstractCachedVal implements TimedVal {
 
     public valueAt(time: number): number {
         if (this.lastVal === undefined || this.lastCalcAt != time) {
-            this.lastVal = this.recomputeCachedVal(time);
-            this.lastCalcAt = time;
+            this.cache(time);
         }
         return this.lastVal;
+    }
+
+    protected cache(time: number): void {
+        this.lastVal = this.recomputeCachedVal(time);
+        this.lastCalcAt = time;
     }
 
     protected abstract recomputeCachedVal(time: number): number;
@@ -167,18 +172,35 @@ export class Accumulator extends AbstractCachedVal {
 }
 
 /**
- * DepdendentAccumulator is an accumulator whose acceleration and velocities are TimedValues.
+ * DependentAccumulator is an accumulator whose acceleration and velocities are TimedValues. A DependentAccumulator
+ * must recompute itself on each tick so that it can stay informed of changes on downstream TimedVals which may change
+ * arbitrarily.
+ *
+ * The DependentAccumulator accumulates velocity separately from the velVal TimedVal. It interprets these changes in
+ * velVal as instantaneous impulses that occur on the tick.
  */
-export class DepdendentAccumulator extends AbstractCachedVal implements Tickable {
+export class DependentAccumulator extends AbstractCachedVal implements Tickable {
     private velocity: number;
     private velocityAtLastCalc: number;
     constructor(private value: number, time: number, private velVal: TimedVal, private acceleration: TimedVal) {
         super(time);
         Clock.registerTickable(this);
+        this.velocity = this.velVal.valueAt(time);
+        this.velocityAtLastCalc = this.velocity;
     }
 
     public tick(time: number): void {
-        this.valueAt(time); // make the call to the superclass to ensure caching occurs.
+        this.valueAt(time); // make the call to the superclass to ensure that caching occurs.
+    }
+
+    public changeVelocity(velocity: TimedVal, time: number) {
+        this.velVal = velocity;
+        this.cache(time); // force a recache if needed.
+    }
+
+    public changeAcceleration(acceleration: TimedVal, time: number) {
+        this.acceleration = acceleration;
+        this.cache(time); // force a recache if needed.
     }
 
     protected recomputeCachedVal(time: number): number {
@@ -341,6 +363,9 @@ export class WeightedAverage extends ZipCombiner {
 // Convenience methods to avoid a shit-ton of 'new' statements. This should be considered the "public API"
 export function accum(val: number, time: number, vel: number, accel: number = 0): Accumulator {
     return new Accumulator(val, time, vel, accel);
+}
+export function daccum(val: number, time: number, vel: TimedVal, accel: TimedVal = ZERO): DependentAccumulator {
+    return new DependentAccumulator(val, time, vel, accel);
 }
 export function add(...vals: TimedVal[]): Adder {
     return new Adder(...vals);

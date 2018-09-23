@@ -31,8 +31,6 @@
  *      instances are "as alphabetized as possible". Keep it that way (please).
  */
 
-import {Clock, Tickable} from "./engine";
-
 /**
  * TimedVal is a value which changes over time.
  */
@@ -46,11 +44,18 @@ export interface TimedVal {
     valueAt(time: number): number;
 }
 
+export type ChangeListener = (oldVal: number, newVal: number) => void;
+
+export interface Publisher {
+    register(listener: ChangeListener): void;
+}
+
 /**
  * Button is a TimedVal whose value can be toggled or set by external events. It has value zero if off and one if on.
  */
-export class Button implements TimedVal {
+export class Button implements TimedVal, Publisher {
     private isOn: boolean;
+    private changeListeners: ChangeListener[] = [];
     public constructor(isOn: boolean) {
         this.isOn = isOn;
     }
@@ -58,10 +63,24 @@ export class Button implements TimedVal {
     public valueAt(_ignore: number): number { return this.isOn ? 1 : 0; }
 
     public toggle(): void {
+        let oldVal = this.isOn;
         this.isOn = !this.isOn;
+        this.notifyListeners(oldVal, this.isOn);
     }
     public set(isOn: boolean): void {
+        let oldVal = this.isOn;
         this.isOn = isOn;
+        this.notifyListeners(oldVal, this.isOn);
+    }
+
+    public notifyListeners(oldVal: boolean, newVal: boolean) {
+        this.changeListeners.forEach((listener) => {
+           listener(oldVal ? 1 : 0, newVal ? 1 : 0);
+        });
+    }
+
+    public register(listener: ChangeListener): void {
+        this.changeListeners.push(listener);
     }
 }
 
@@ -81,11 +100,12 @@ export class Constant implements TimedVal {
 }
 
 /**
- * Knob is a TimedVal whose value does not change over time, but is set by external events.
+ * Knob is a TimedVal whose value does not change over time, but is set in response to external events.
  */
-export class Knob implements TimedVal {
+export class Knob implements TimedVal, Publisher {
     // N.b. this class doesn't extend DependentVal because its implementation of valueAt is significantly simpler.
     private value: number;
+    private changeListeners: ChangeListener[] = [];
 
     public constructor(initialValue: number) {
         this.value = initialValue;
@@ -94,7 +114,19 @@ export class Knob implements TimedVal {
     public valueAt(_ignore: number): number { return this.value; }
 
     public setVal(newVal: number) {
+        let oldVal:number = this.value;
         this.value = newVal;
+        this.notifyListeners(oldVal, this.value);
+    }
+
+    public notifyListeners(oldVal: number, newVal: number) {
+        this.changeListeners.forEach((listener) => {
+            listener(oldVal, newVal);
+        });
+    }
+
+    public register(listener: ChangeListener): void {
+        this.changeListeners.push(listener);
     }
 }
 
@@ -167,52 +199,6 @@ export class Accumulator extends AbstractCachedVal {
         let dT = (time - this.lastCalcAt);
         this.value += this.velocity*dT + 0.5*this.acceleration*dT*dT;
         this.velocity += this.acceleration*dT;
-        return this.value;
-    }
-}
-
-/**
- * DependentAccumulator is a variant Accumulator whose acceleration and velocities are TimedValues. A
- * DependentAccumulator must recompute itself on each tick so that it can stay informed of changes on downstream
- * TimedVals which may change arbitrarily.
- *
- * The DependentAccumulator accumulates velocity separately from the velVal TimedVal. It interprets these changes in
- * velVal as instantaneous impulses that occur on the tick.
- */
-export class DependentAccumulator extends AbstractCachedVal implements Tickable {
-    private velocity: number;
-    private velocityAtLastCalc: number;
-    constructor(private value: number, time: number, private velVal: TimedVal, private acceleration: TimedVal) {
-        super(time);
-        Clock.registerTickable(this);
-        this.velocity = this.velVal.valueAt(time);
-        this.velocityAtLastCalc = this.velocity;
-    }
-
-    public tick(time: number): void {
-        this.valueAt(time); // make the call to the superclass to ensure that caching occurs.
-    }
-
-    public changeVelocity(velocity: TimedVal, time: number) {
-        this.cache(time); // force a recache if needed.
-        this.velVal = velocity;
-    }
-
-    public changeAcceleration(acceleration: TimedVal, time: number) {
-        this.cache(time); // force a recache if needed.
-        this.acceleration = acceleration;
-    }
-
-    protected recomputeCachedVal(time: number): number {
-        let velNow = this.velVal.valueAt(time);
-        let dT = (time - this.lastCalcAt);
-        let dV = (this.velVal.valueAt(time) - this.velocityAtLastCalc);
-
-        this.velocity += dV;
-        this.value += this.velocity*dT + 0.5*this.acceleration.valueAt(time)*dT*dT;
-        this.velocity += this.acceleration.valueAt(time)*dT;
-
-        this.velocityAtLastCalc = velNow;
         return this.value;
     }
 }
@@ -309,7 +295,7 @@ export class Sigmoider extends Filter {
 }
 
 /**
- * ZipCombiner is an abstract TimedVal which combines a pair of array of inputs in dot-product-like way.
+ * ZipCombiner is an abstract TimedVal which combines a pair of array of inputs in a dot-product-like way.
  */
 export abstract class ZipCombiner implements TimedVal {
     private a: TimedVal[];
@@ -364,9 +350,6 @@ export class WeightedAverage extends ZipCombiner {
 // Convenience methods to avoid a shit-ton of 'new' statements. This should be considered the "public API"
 export function accum(val: number, time: number, vel: number, accel: number = 0): Accumulator {
     return new Accumulator(val, time, vel, accel);
-}
-export function daccum(val: number, time: number, vel: TimedVal, accel: TimedVal = ZERO): DependentAccumulator {
-    return new DependentAccumulator(val, time, vel, accel);
 }
 export function add(...vals: TimedVal[]): Adder {
     return new Adder(...vals);

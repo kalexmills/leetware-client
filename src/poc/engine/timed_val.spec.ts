@@ -1,18 +1,22 @@
 import "jasmine";
 import {
     accum,
-    Accumulator, Averager, avg, clamp, Clamper,
+    add,
+    avg,
+    clamp,
+    knob,
+    mul,
+    num,
+    wghtdAvg,
+    Accumulator,
+    Adder,
+    Averager,
+    Clamper,
     Constant,
     DotProduct,
-    knob,
     Knob,
-    mul,
     Multiplier,
-    num,
-    Adder,
-    TimedVal,
     WeightedAverage,
-    wghtdAvg
 } from './timed_val';
 
 describe('Constant', () => {
@@ -194,7 +198,7 @@ describe('Clamper', () => {
         x.setVal(-15);
         expect(c.valueAt(0)).toEqual(0);
         x.setVal(11);
-        expect(c.valueAt(0)).toEqual(11);
+        expect(c.valueAt(0)).toEqual(10);
     });
 });
 
@@ -202,6 +206,6 @@ describe('Averager', () => {
     it('should correctly compute an average', () => {
         let a: Averager = avg(num(6), num(10), num(12));
 
-        expect(a.valueAt(0)).toBeCloseTo((6*10*12)/3, 10);
+        expect(a.valueAt(0)).toBeCloseTo((6+10+12)/3, 10);
     })
 });

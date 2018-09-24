@@ -44,3 +44,8 @@ export abstract class Clock {
         Clock.NOW = 0;
     }
 };
+
+// Assigns IDs and serializes all entities.
+export abstract class EntityManager {
+    private nextId: number = 0;
+}

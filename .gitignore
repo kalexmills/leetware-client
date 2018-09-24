@@ -1,6 +1,7 @@
 build/fwk/
 build/generogue/
 build/tests/
+build/poc/
 build/main.*
 doc/
 node_modules/

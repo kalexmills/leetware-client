@@ -21,7 +21,7 @@
     "@types/jasmine": "^2.8.8",
     "jasmine-ts": "^0.2.1",
     "ts-node": "^7.0.1",
-    "typescript": "2.0.3",
+    "typescript": "2.1.0",
     "webpack": "1.13.2"
   },
   "dependencies": {
